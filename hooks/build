@@ -1,0 +1,25 @@
+#!/bin/bash
+# https://docs.docker.com/docker-hub/builds/advanced/
+
+PHPUNIT_5=("5-alpine" "5" "xdebug-2.5.5")
+PHPUNIT_8=("7.3-alpine" "8" "xdebug")
+BUILD_ARRAY=( PHPUNIT_5[@] PHPUNIT_8[@] )
+
+for VAR_NAME in ${BUILD_ARRAY[@]}; do
+    BUILD_INFO=(${!VAR_NAME})
+    BUILD_TAG="${BUILD_INFO[1]}"
+    LOCATION=$(curl -s --head https://phar.phpunit.de/phpunit-"${BUILD_TAG}".phar | grep location)
+    VERSION=$(expr "${LOCATION}" : '.*/phpunit-\([0-9]*\.[0-9]*\.[0-9]*\)\.phar')
+    docker build \
+        --build-arg VCS_REF=`git rev-parse --short HEAD` \
+        --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+        --build-arg VERSION="${VERSION}" \
+        --build-arg PHP_IMAGE_TAG="${BUILD_INFO[0]}" \
+        --build-arg PHPUNIT_VERSION="${BUILD_TAG}" \
+        --build-arg XDEBUG_VERSION="${BUILD_INFO[2]}" \
+        -t "${DOCKER_REPO}:${BUILD_TAG}" .
+    docker push "${DOCKER_REPO}:${BUILD_TAG}"
+    if [ "${BUILD_TAG}" = "8" ]; then
+        docker tag "${DOCKER_REPO}:${BUILD_TAG}" "${IMAGE_NAME}"
+    fi
+done
